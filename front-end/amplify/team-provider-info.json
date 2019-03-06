@@ -1,0 +1,19 @@
+{
+    "prod": {
+        "awscloudformation": {
+            "AuthRoleName": "button-for-slack-ui-20190309211524-authRole",
+            "UnauthRoleArn": "arn:aws:iam::383430062921:role/button-for-slack-ui-20190309211524-unauthRole",
+            "AuthRoleArn": "arn:aws:iam::383430062921:role/button-for-slack-ui-20190309211524-authRole",
+            "Region": "eu-central-1",
+            "DeploymentBucketName": "button-for-slack-ui-20190309211524-deployment",
+            "UnauthRoleName": "button-for-slack-ui-20190309211524-unauthRole",
+            "StackName": "button-for-slack-ui-20190309211524",
+            "StackId": "arn:aws:cloudformation:eu-central-1:383430062921:stack/button-for-slack-ui-20190309211524/128f4930-42a8-11e9-a531-0ac843449136"
+        },
+        "categories": {
+            "auth": {
+                "cognito6a6f22f3": {}
+            }
+        }
+    }
+}

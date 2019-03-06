@@ -1,0 +1,12 @@
+PROFILE: <Your AWS CLI profile>
+AWS_ACCOUNT_ID: <Your AWS account Id>
+
+COGNITO_USER_POOL_NAME: <Id of Amazon Cognito user pool>
+
+CORS_ORIGIN: "<Your origin used for CORS>"
+
+SLACK_OAUTH2_PAGE_URL: <URL to the page that will be shown after successful authentication via Slack OAuth2>
+SLACK_CLIENT_ID: "<Client Id of your Slack application>"
+SLACK_CLIENT_SECRET: "<Client Secret of your Slack application>"
+
+AWS_IOT_BUTTON_TOPIC: <ARN of your AWS IoT Button Topic>

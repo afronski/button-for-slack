@@ -1,0 +1,232 @@
+service: button-for-slack-ex
+provider:
+  name: aws
+  profile: ${file(.local-keys.yaml):PROFILE}
+  region: eu-central-1
+  stage: production
+
+  memorySize: 512
+  runtime: provided
+
+  tracing:
+    lambda: true
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
+      Resource:
+        - "*"
+
+custom:
+  apiGatewayXray: true
+  stageSettings:
+    AccessLogSetting:
+      Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller": "$context.identity.caller", "user": "$context.identity.user", "requestTime": "$context.requestTime", "httpMethod": "$context.httpMethod", "resourcePath": "$context.resourcePath", "status": "$context.status", "protocol": "$context.protocol", "responseLength": "$context.responseLength" }'
+    MethodSettings:
+      ResourcePath: "/*"
+      HttpMethod: "*"
+      LoggingLevel: INFO
+      DataTraceEnabled: true
+
+plugins:
+  - serverless-api-gateway-xray
+  - serverless-api-stage
+
+resources:
+  Resources:
+
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,HEAD,GET,POST,PUT,DELETE,PATCH'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+
+    GatewayResponseDefault5XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,HEAD,GET,POST,PUT,DELETE,PATCH'"
+        ResponseType: DEFAULT_5XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+
+    UserProfiles:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: button-for-slack-users
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: 'user_id'
+            AttributeType: S
+        KeySchema:
+          - AttributeName: 'user_id'
+            KeyType: HASH
+
+    ConnectedWorkspaces:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: button-for-slack-workspaces
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: 'id'
+            AttributeType: S
+        KeySchema:
+          - AttributeName: 'id'
+            KeyType: HASH
+
+package:
+  artifact: lambda.zip
+
+functions:
+  UserProfileFetch:
+    handler: Elixir.UserProfile:fetch
+    environment:
+      CORS_ORIGIN: ${file(.local-keys.yaml):CORS_ORIGIN}
+      USERS_TABLE:
+        Ref: "UserProfiles"
+      SLACK_WORKSPACES_TABLE:
+        Ref: "ConnectedWorkspaces"
+      SLACK_CLIENT_ID: ${file(.local-keys.yaml):SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${file(.local-keys.yaml):SLACK_CLIENT_SECRET}
+    events:
+      - http:
+          path: users
+          method: get
+          cors:
+            origin: ${file(.local-keys.yaml):CORS_ORIGIN}
+            allowCredentials: true
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+          authorizer:
+            arn: "arn:aws:cognito-idp:${self:provider.region}:${file(.local-keys.yaml):AWS_ACCOUNT_ID}:userpool/${file(.local-keys.yaml):COGNITO_USER_POOL_NAME}"
+
+  UserProfileUpdate:
+    handler: Elixir.UserProfile:update
+    environment:
+      CORS_ORIGIN: ${file(.local-keys.yaml):CORS_ORIGIN}
+      USERS_TABLE:
+        Ref: "UserProfiles"
+      SLACK_WORKSPACES_TABLE:
+        Ref: "ConnectedWorkspaces"
+      SLACK_CLIENT_ID: ${file(.local-keys.yaml):SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${file(.local-keys.yaml):SLACK_CLIENT_SECRET}
+    events:
+      - http:
+          path: users
+          method: put
+          cors:
+            origin: ${file(.local-keys.yaml):CORS_ORIGIN}
+            allowCredentials: true
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+          authorizer:
+            arn: "arn:aws:cognito-idp:${self:provider.region}:${file(.local-keys.yaml):AWS_ACCOUNT_ID}:userpool/${file(.local-keys.yaml):COGNITO_USER_POOL_NAME}"
+
+  SlackWorkspacesListConnected:
+    handler: Elixir.SlackWorkspaces:list_connected
+    environment:
+      CORS_ORIGIN: ${file(.local-keys.yaml):CORS_ORIGIN}
+      USERS_TABLE:
+        Ref: "UserProfiles"
+      SLACK_WORKSPACES_TABLE:
+        Ref: "ConnectedWorkspaces"
+      SLACK_CLIENT_ID: ${file(.local-keys.yaml):SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${file(.local-keys.yaml):SLACK_CLIENT_SECRET}
+    events:
+      - http:
+          path: slack_workspaces/
+          method: get
+          cors:
+            origin: ${file(.local-keys.yaml):CORS_ORIGIN}
+            allowCredentials: true
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+          authorizer:
+            arn: "arn:aws:cognito-idp:${self:provider.region}:${file(.local-keys.yaml):AWS_ACCOUNT_ID}:userpool/${file(.local-keys.yaml):COGNITO_USER_POOL_NAME}"
+
+  SlackWorkspacesConnectNew:
+    handler: Elixir.SlackWorkspaces:connect_new
+    environment:
+      CORS_ORIGIN: ${file(.local-keys.yaml):CORS_ORIGIN}
+      USERS_TABLE:
+        Ref: "UserProfiles"
+      SLACK_WORKSPACES_TABLE:
+        Ref: "ConnectedWorkspaces"
+      SLACK_CLIENT_ID: ${file(.local-keys.yaml):SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${file(.local-keys.yaml):SLACK_CLIENT_SECRET}
+    events:
+      - http:
+          path: slack_workspaces/auth
+          method: get
+
+  SlackWorkspacesDisconnect:
+    handler: Elixir.SlackWorkspaces:disconnect
+    environment:
+      CORS_ORIGIN: ${file(.local-keys.yaml):CORS_ORIGIN}
+      USERS_TABLE:
+        Ref: "UserProfiles"
+      SLACK_WORKSPACES_TABLE:
+        Ref: "ConnectedWorkspaces"
+      SLACK_CLIENT_ID: ${file(.local-keys.yaml):SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${file(.local-keys.yaml):SLACK_CLIENT_SECRET}
+    events:
+      - http:
+          path: slack_workspaces/{workspace_id}
+          method: delete
+          cors:
+            origin: ${file(.local-keys.yaml):CORS_ORIGIN}
+            allowCredentials: true
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+          authorizer:
+            arn: "arn:aws:cognito-idp:${self:provider.region}:${file(.local-keys.yaml):AWS_ACCOUNT_ID}:userpool/${file(.local-keys.yaml):COGNITO_USER_POOL_NAME}"
+
+  IotButtonHandler:
+    handler: Elixir.AwsIotButton:handle_event
+    environment:
+      USERS_TABLE:
+        Ref: "UserProfiles"
+      SLACK_WORKSPACES_TABLE:
+        Ref: "ConnectedWorkspaces"
+    events:
+      - iot:
+          sql: "SELECT * FROM '${file(.local-keys.yaml):AWS_IOT_BUTTON_TOPIC}'"
+          enabled: true
