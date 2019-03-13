@@ -44,11 +44,10 @@ defmodule AwsIotButton do
       {"Content-Type", "application/json; charset=utf-8"}
     ]
 
-    r = Hackney.request("POST", url, body, headers)
+    response = Hackney.request("POST", url, body, headers)
+    IO.puts("SLACK RESPONSE: #{Kernel.inspect(response)}")
 
-    IO.puts("#{Kernel.inspect(r)}")
-
-    case r do
+    case response do
       {:ok, %{status_code: 200, body: body}} ->
         {:ok, body}
 
