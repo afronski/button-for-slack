@@ -19,7 +19,8 @@ defmodule AwsIotButton do
         results =
           workspaces
           |> Enum.map(fn workspace -> workspace.token end)
-          |> Enum.map(fn token -> change_status(type, profile, token) end)
+          |> Enum.map(fn token -> {change_status(type, profile, token), token} end)
+          |> Enum.map(fn {status_result, token} -> {status_result, change_presence(type, token)} end)
 
         respond(
           "Action sent from button #{device_id} successfully accepted: #{Kernel.inspect(results)}"
@@ -56,13 +57,41 @@ defmodule AwsIotButton do
     end
   end
 
+  defp change_presence(type, token) do
+    url = "https://slack.com/api/users.setPresence"
+
+    body =
+      Poison.encode!(%{
+        "presence" => presence_by_type(type)
+      })
+
+    headers = [
+      {"Authorization", "Bearer #{token}"},
+      {"Content-Type", "application/json; charset=utf-8"}
+    ]
+
+    response = Hackney.request("POST", url, body, headers)
+    IO.puts("SLACK RESPONSE: #{Kernel.inspect(response)}")
+
+    case response do
+      {:ok, %{status_code: 200, body: body}} ->
+        {:ok, body}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp presence_by_type("DOUBLE"), do: "away"
+  defp presence_by_type(_),        do: "auto"
+
   defp text_by_type("SINGLE", profile), do: profile.statuses["active"]
   defp text_by_type("DOUBLE", profile), do: profile.statuses["away"]
-  defp text_by_type("LONG", _profile), do: ""
+  defp text_by_type("LONG", _profile),  do: ""
 
   defp emoji_by_type("SINGLE", profile), do: profile.statuses["active_emoji"]
   defp emoji_by_type("DOUBLE", profile), do: profile.statuses["away_emoji"]
-  defp emoji_by_type("LONG", _profile), do: ""
+  defp emoji_by_type("LONG", _profile),  do: ""
 
   defp respond(status) do
     IO.puts(status)
